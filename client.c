@@ -4,6 +4,7 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <errno.h>
 #include <string.h>
 
 #define PORT 8081
@@ -29,6 +30,8 @@ int main() {
     conn = connect(sock, (struct sockaddr *)&servaddr, sizeof(servaddr));
     if (conn != 0) {
         printf("Failed to connect to server at port %d\n", PORT);
+        printf("Error: %s\n", strerror(errno));
+        printf("Raw: %d\n", errno);
     }
     else {
         printf("Connected to the server\n");
@@ -45,11 +48,14 @@ void communicate(int conn) {
     int n;
     for (;;) {
         n = 0;
+        bzero(buf, 80);
         while ((buf[n++] = getchar()) != '\n')
             ;
 
         write(conn, buf, sizeof(buf));
-        
+        if (strstr(buf, terminator) != NULL) {
+            break;
+        }
         bzero(buf, 80);
 
         read(conn, buf, sizeof(buf));
