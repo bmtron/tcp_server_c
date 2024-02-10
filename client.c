@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define PORT 8081
-void communicate(int sock);
+void communicate(int conn);
 
 int main() {
     int sock, conn;
@@ -60,6 +60,4 @@ void communicate(int conn) {
         bzero(buf, 80);
 
     }
-       
-   // send(sock, &message, sizeof(message), 0);
 }

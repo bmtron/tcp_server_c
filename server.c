@@ -8,7 +8,7 @@
 #define PORT 8081
 
 int socket_create();
-void communicate(int sock);
+void communicate(int conn);
 
 int main() {
     printf("Hello, world.\nThis will be a TCP server maybe.\n");
@@ -23,7 +23,7 @@ int main() {
     my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     my_addr.sin_port = htons(PORT);
     printf("The chosen port is %d\n", my_addr.sin_port); 
-    //printf("%d", htons(PORT));
+    
     int binding = bind(sock, (struct sockaddr *) &my_addr, sizeof(struct sockaddr_in));
 
     if (binding == -1) {
@@ -33,25 +33,24 @@ int main() {
         printf("bound socket at port %d successfully\n", PORT);
     }    
 
-        int listen_ret = listen(sock, 3);
+    int listen_ret = listen(sock, 3);
 
-        if (listen_ret == -1) {
-            printf("Error listening to socket on port %d\n", PORT);
-        }
-        else {
-            printf("Successfully listening on port %d\n", PORT);
-        }
+    if (listen_ret == -1) {
+        printf("Error listening to socket on port %d\n", PORT);
+    }
+    else {
+        printf("Successfully listening on port %d\n", PORT);
+    }
 
+    int len = sizeof(client);
+    int newconn = accept(sock, (struct sockaddr *)&client, &len);
 
-        int len = sizeof(client);
-        int newconn = accept(sock, (struct sockaddr *)&client, &len);
-        if (newconn < 0) {
-            printf("Server failed to accept\n");
-        }
-        else {
-            printf("connect successful\n");
-        }
-
+    if (newconn < 0) {
+        printf("Server failed to accept\n");
+    }
+    else {
+        printf("connect successful\n");
+    }
 
     communicate(newconn);
     close(sock);
