@@ -5,11 +5,14 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <errno.h>
+#include <pthread.h>
+#include <stdlib.h>
 
 #define PORT 8081
 
 int socket_create();
 void communicate(int conn);
+void *clean_exit_thread(void* exit_bit);
 
 int main() {
     int sock;
@@ -44,20 +47,32 @@ int main() {
     else {
         printf("Successfully listening on port %d\n", PORT);
     }
+    int exit_bit;
+    pthread_t exit_thread_id;
+    exit_bit = 0;
+    pthread_create(&exit_thread_id, NULL, clean_exit_thread, (void*)&exit_bit);
     for (;;) {
+        printf("Waiting for connection or exit bit.....\n");
+        
         int len = sizeof(client);
         int newconn = accept(sock, (struct sockaddr *)&client, &len);
 
+        
         if (newconn < 0) {
             printf("Server failed to accept\n");
             break;
         }
         else {
             printf("connect successful\n");
+            communicate(newconn);
+            if (exit_bit == 1) {
+                printf("Exiting...\n");
+                break;
+            }
         }
 
-        communicate(newconn);
     }
+    printf("exiting and closing...");
     close(sock);
     return 0;
 }
@@ -75,27 +90,52 @@ int socket_create() {
 }
 
 void communicate(int conn) {
-    char recv_buf[80];
+    char recv_buf[1024];
     char terminator[] = "exit";
     int n;
     int count = 0;
+    char contst_buf[100];
     for (;;) {
-        bzero(recv_buf, 80);
-        read(conn, recv_buf, sizeof(recv_buf));
-        if (count == 0) {
-            count++;
-            printf("%s", recv_buf);
-        }
+        bzero(recv_buf, 1024);
+        int conn_open = read(conn, recv_buf, sizeof(recv_buf));
+
         if (strstr(recv_buf, terminator) != NULL) {
             break;
         }
 
         printf("From client: %s", recv_buf);
-        bzero(recv_buf, 80);
+        bzero(recv_buf, 1024);
 
         char send_buf[] = "Message received: SUCCESS\n";
-
-        write(conn, send_buf, sizeof(send_buf));
-        bzero(recv_buf, 80);
+        if (conn_open <= 0) {
+            //this means the connection was abruptly closed
+            //on the client side. break from this.
+            break;
+        } else {
+            write(conn, send_buf, sizeof(send_buf));
+        }
     }
+}
+
+void *clean_exit_thread(void* exit_bit) {
+    char terminator[] = "exit";
+    int n;
+    char buf[80];
+    for (;;) { 
+        while ((buf[n++] = getchar()) != '\n')
+                ;
+
+        if (strstr(buf, terminator) != NULL) {
+            printf("broke out of exit thread\n");
+            exit(0);
+        }
+    }
+    //may save this for later,
+    //the exit bit was being used to get set
+    //instead of hard exiting, 
+    //but it doesn't work right because of the way 
+    //the loops are set up. exit(0) should work fine
+    //*(int*)exit_bit = 1;
+
+    return exit_bit;
 }
