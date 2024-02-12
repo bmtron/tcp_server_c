@@ -15,6 +15,7 @@ void communicate(int conn);
 void* clean_exit_thread(void* exit_bit);
 void socket_run(int sock, struct sockaddr_in my_addr, struct sockaddr_in client);
 void* client_thread(void* client_args);
+void interpret();
 
 struct client_thread_args {
     int sock;
@@ -110,27 +111,25 @@ int socket_create() {
 
 void communicate(int conn) {
     char recv_buf[1024];
-    char terminator[] = "exit";
     int n;
-    int count = 0;
-    char contst_buf[100];
     for (;;) {
         bzero(recv_buf, 1024);
         int conn_open = read(conn, recv_buf, sizeof(recv_buf));
 
-        if (strstr(recv_buf, terminator) != NULL) {
-            break;
-        }
-
-        printf("From client: %s", recv_buf);
-        bzero(recv_buf, 1024);
-
-        char send_buf[] = "Message received: SUCCESS\n";
         if (conn_open <= 0) {
             //this means the connection was abruptly closed
             //on the client side. break from this.
+            //if we don't check and break,
+            //we get a SIGPIPE from the OS
+            //and the program shuts down completely.
             break;
-        } else {
+        } 
+        else {
+            printf("From client: %s", recv_buf);
+            bzero(recv_buf, 1024);
+
+            char send_buf[] = "Message received: SUCCESS\n";
+        
             write(conn, send_buf, sizeof(send_buf));
         }
     }
