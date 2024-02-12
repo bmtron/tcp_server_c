@@ -12,10 +12,10 @@
 
 int socket_create();
 void communicate(int conn);
-void* clean_exit_thread(void* exit_bit);
+void* clean_exit_thread(void* sock);
 void socket_run(int sock, struct sockaddr_in my_addr, struct sockaddr_in client);
 void* client_thread(void* client_args);
-void interpret();
+void interpret_and_reply(int conn);
 
 struct client_thread_args {
     int sock;
@@ -32,7 +32,6 @@ int main() {
     }
     socket_run(sock, my_addr, client);
     printf("exiting and closing...");
-    close(sock);
     return 0;
 }
 
@@ -65,7 +64,7 @@ void socket_run(int sock, struct sockaddr_in my_addr, struct sockaddr_in client)
     int exit_bit;
     pthread_t exit_thread_id;
     exit_bit = 0;
-    pthread_create(&exit_thread_id, NULL, clean_exit_thread, (void*)&exit_bit);
+    pthread_create(&exit_thread_id, NULL, clean_exit_thread, (void*)&sock);
 
     struct client_thread_args* client_args;
     client_args = malloc(sizeof(struct client_thread_args));
@@ -74,7 +73,6 @@ void socket_run(int sock, struct sockaddr_in my_addr, struct sockaddr_in client)
     (*client_args).client = client;
 
     for (;;) {
-        printf("Waiting for connection or exit bit.....\n");
         socklen_t len = (socklen_t)sizeof((*client_args).client);
         int newconn = accept((*client_args).sock, (struct sockaddr *)&(*client_args).client, &len);
         pthread_t client_thread_id;
@@ -112,30 +110,24 @@ int socket_create() {
 void communicate(int conn) {
     char recv_buf[1024];
     int n;
-    for (;;) {
-        bzero(recv_buf, 1024);
-        int conn_open = read(conn, recv_buf, sizeof(recv_buf));
+    bzero(recv_buf, 1024);
+    int conn_open = read(conn, recv_buf, sizeof(recv_buf));
 
-        if (conn_open <= 0) {
-            //this means the connection was abruptly closed
-            //on the client side. break from this.
-            //if we don't check and break,
-            //we get a SIGPIPE from the OS
-            //and the program shuts down completely.
-            break;
-        } 
-        else {
-            printf("From client: %s", recv_buf);
-            bzero(recv_buf, 1024);
-
-            char send_buf[] = "Message received: SUCCESS\n";
-        
-            write(conn, send_buf, sizeof(send_buf));
-        }
+    if (conn_open <= 0) {
+        //this means the connection was abruptly closed
+        //on the client side. return out of this.
+        //if we don't check and return,
+        //we get a SIGPIPE from the OS
+        //and the program shuts down completely.
+        return;
+    } 
+    else {
+        printf("From client: %s", recv_buf);
+        interpret_and_reply(conn);
     }
 }
 
-void *clean_exit_thread(void* exit_bit) {
+void *clean_exit_thread(void* sock) {
     char terminator[] = "exit";
     int n;
     char buf[80];
@@ -145,15 +137,19 @@ void *clean_exit_thread(void* exit_bit) {
 
         if (strstr(buf, terminator) != NULL) {
             printf("broke out of exit thread\n");
+            close(*(int*)sock);
             exit(0);
         }
     }
-    //may save this for later,
-    //the exit bit was being used to get set
-    //instead of hard exiting, 
-    //but it doesn't work right because of the way 
-    //the loops are set up. exit(0) should work fine
-    //*(int*)exit_bit = 1;
+    return sock;
+}
 
-    return exit_bit;
+void interpret_and_reply(int conn) {
+    char send_buf[] = "Message received: SUCCESS\n";
+    char http_resp[] = "HTTP/1.1 200 OK\r\n"
+                        "Content-Type: text/html\r\n"
+                        "\r\n"
+                        "<html>Hello, world. This is a crappy HTTP server.</html>\r\n";
+    write(conn, http_resp, strlen(http_resp));
+    close(conn);
 }

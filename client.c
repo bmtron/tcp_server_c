@@ -42,13 +42,13 @@ int main() {
 
 
 void communicate(int conn) {
-    char buf[80];
+    char buf[8000];
     char terminator[] = "exit";
 
     int n;
     for (;;) {
         n = 0;
-        bzero(buf, 80);
+        bzero(buf, 8000);
         while ((buf[n++] = getchar()) != '\n')
             ;
 
@@ -56,14 +56,12 @@ void communicate(int conn) {
         if (strstr(buf, terminator) != NULL) {
             break;
         }
-        bzero(buf, 80);
+        bzero(buf, 8000);
 
         read(conn, buf, sizeof(buf));
         if (strstr(buf, terminator) != NULL) {
             break;
         }
         printf("From server: %s", buf);
-        bzero(buf, 80);
-
     }
 }
