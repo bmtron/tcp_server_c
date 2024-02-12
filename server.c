@@ -12,7 +12,14 @@
 
 int socket_create();
 void communicate(int conn);
-void *clean_exit_thread(void* exit_bit);
+void* clean_exit_thread(void* exit_bit);
+void socket_run(int sock, struct sockaddr_in my_addr, struct sockaddr_in client);
+void* client_thread(void* client_args);
+
+struct client_thread_args {
+    int sock;
+    struct sockaddr_in client;
+};
 
 int main() {
     int sock;
@@ -22,6 +29,13 @@ int main() {
     if (sock == -1) {
         return 0;
     }
+    socket_run(sock, my_addr, client);
+    printf("exiting and closing...");
+    close(sock);
+    return 0;
+}
+
+void socket_run(int sock, struct sockaddr_in my_addr, struct sockaddr_in client) {
     memset(&my_addr, '\0', sizeof(struct sockaddr_in));
     
     my_addr.sin_family = AF_INET;
@@ -33,7 +47,7 @@ int main() {
     if (binding == -1) {
         printf("Error binding to socket on port %d\n", PORT);
         printf("Error reason: %s\n", strerror(errno));
-        return 0;
+        return;
     }
     else {
         printf("bound socket at port %d successfully\n", PORT);
@@ -51,32 +65,37 @@ int main() {
     pthread_t exit_thread_id;
     exit_bit = 0;
     pthread_create(&exit_thread_id, NULL, clean_exit_thread, (void*)&exit_bit);
+
+    struct client_thread_args* client_args;
+    client_args = malloc(sizeof(struct client_thread_args));
+
+    (*client_args).sock = sock;
+    (*client_args).client = client;
+
     for (;;) {
         printf("Waiting for connection or exit bit.....\n");
-        
-        int len = sizeof(client);
-        int newconn = accept(sock, (struct sockaddr *)&client, &len);
-
-        
-        if (newconn < 0) {
-            printf("Server failed to accept\n");
-            break;
-        }
-        else {
-            printf("connect successful\n");
-            communicate(newconn);
-            if (exit_bit == 1) {
-                printf("Exiting...\n");
-                break;
-            }
-        }
-
+        socklen_t len = (socklen_t)sizeof((*client_args).client);
+        int newconn = accept((*client_args).sock, (struct sockaddr *)&(*client_args).client, &len);
+        pthread_t client_thread_id;
+        pthread_create(&client_thread_id, NULL, client_thread, (void*)&newconn);
     }
-    printf("exiting and closing...");
-    close(sock);
-    return 0;
+
+    free(client_args);
 }
 
+void *client_thread(void* conn_arg) {
+
+    int newconn = *(int*)conn_arg; 
+    if (newconn < 0) {
+        printf("Server failed to accept\n");
+        return conn_arg;
+    }
+    else {
+        printf("connect successful\n");
+        communicate(newconn);
+    }
+    return conn_arg;
+}
 
 int socket_create() {
     int socket_result;
